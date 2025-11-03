@@ -4,8 +4,6 @@ import numpy as np
 from numpy.typing import NDArray
 from typing import Tuple, Optional
 
-from load_data_sc import data
-
 class SystemID():
     """
     A class used for performing system identification on Input-Output data. Initialize the class by providing the inputs, outputs and time stamps
@@ -14,9 +12,10 @@ class SystemID():
 
     _system_id_catalog = {} #used to store all instances of system IDs created
 
-    def __init__(self, u: NDArray[np.float64], y: NDArray[np.float64], T: NDArray[np.float64], u_y_form: Optional[Tuple[int, int]] = None, **kwargs):
+    def __init__(self, name: str, u: NDArray[np.float64], y: NDArray[np.float64], T: NDArray[np.float64], u_y_form: Optional[Tuple[int, int]] = None, **kwargs):
         if len(u) != len(y): 
             raise ValueError(f"Input u does not have the same length as ouput y. u length: {len(u)}, y length: {len(y)}")
+        self.name = name
         self.u = u
         self.y = y
         self.T = T
@@ -24,7 +23,6 @@ class SystemID():
         self.u_y_form = u_y_form if u_y_form is not None else (2,2)
         for key, value in kwargs.items():
             setattr(self, key, value)
-        self.solve_Axb() 
 
     def normalize_data(self):
         self.u = self.u/np.max(np.abs(self.u))
@@ -49,10 +47,16 @@ class SystemID():
 
         #Conditionally build A matrix depending on the u_y form given
         for i in range(self.u_y_form[1]): #iterating the y values for the A matrix
-            A[:, [i]] = -self.y[i+1:-self.u_y_form[1]+1+i].reshape(-1,1) #To validate
+            start = i+1
+            stop = -self.u_y_form[1]+1+i if i != self.u_y_form[1]-1 else None
+            print(f"Array y to index is now: {start} to {stop}")
+            A[:, [i]] = -self.y[start : stop].reshape(-1,1) #To validate
 
         for i in range(self.u_y_form[0]): #iterating the u values for the A matrix
-            A[:, [i + self.u_y_form[1]]] = self.u[i+1:-self.u_y_form[0]+1+i].reshape(-1,1)
+            start = i+1
+            stop = -self.u_y_form[0]+1+i if i != self.u_y_form[0]-1 else None
+            print(f"Array u to index is now: {start} to {stop}")
+            A[:, [i + self.u_y_form[1]]] = self.u[start : stop].reshape(-1,1)
 
         self.rank = np.linalg.matrix_rank(A)
         print(f"Matrix A rank: {self.rank}, shape: {A.shape[1]}")
@@ -69,14 +73,13 @@ class SystemID():
         Function used to call all methods related to assesing accuracy and confidence in the identified model. Function 
         is coupled with the classes' solve_Axb method to ensure all identified models are analyzed.  
         """
-        self.NMSE
-        self.error
-        self.relative_error
-        self.mean_and_std_error
-        self.VAF
-        self.fit_ratio
-        self.model_confidence
-        SystemID._system_id_catalog[self] = self.model_report()
+        self.model_report = {
+            "NMSE": self.NMSE,
+            "Mean and Std Error": self.mean_and_std_error,
+            "VAF": self.VAF,
+            "Fit Ratio": self.fit_ratio,
+        }
+        SystemID._system_id_catalog[self.name] = self.model_report
 
     @property
     def NMSE(self) -> float:
@@ -110,21 +113,3 @@ class SystemID():
     def model_confidence(self) -> float:
         #More computation needs to be done to draw insight from this property
         return np.linalg.norm(self.b - self.A @ self.x_parameters,2)/(self.N - (self.u_y_form[0] + self.u_y_form[1] + 1)) * np.linalg.inv(self.A.T @ self.A)
-
-    def model_report(self) -> str:
-        #TODO : Figure out what exactly needs to be reported
-        return None
-
-#To Update
-data = np.loadtxt('/Users/robertmcrae/Desktop/McGill/Fall 2025/MECH 412/Assignments/Project/PRBS_DATA/IO_data_1_0.csv', delimiter=',')
-test = SystemID(u = data[:,1], y = data[:,2], T = data[:,0], normalize = True)
-test.run()
-data = np.loadtxt('/Users/robertmcrae/Desktop/McGill/Fall 2025/MECH 412/Assignments/Project/PRBS_DATA/IO_data_1_1.csv', delimiter=',')
-test = SystemID(u = data[:,1], y = data[:,2], T = data[:,0], normalize = True)
-test.run()
-data = np.loadtxt('/Users/robertmcrae/Desktop/McGill/Fall 2025/MECH 412/Assignments/Project/PRBS_DATA/IO_data_1_2.csv', delimiter=',')
-test = SystemID(u = data[:,1], y = data[:,2], T = data[:,0], normalize = True)
-test.run()
-data = np.loadtxt('/Users/robertmcrae/Desktop/McGill/Fall 2025/MECH 412/Assignments/Project/PRBS_DATA/IO_data_1_3.csv', delimiter=',')
-test = SystemID(u = data[:,1], y = data[:,2], T = data[:,0], normalize = True)
-test.run()
