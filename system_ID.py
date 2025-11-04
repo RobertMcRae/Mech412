@@ -1,5 +1,6 @@
 import control
 import numpy as np
+import matplotlib.pyplot as plt
 
 from numpy.typing import NDArray
 from typing import Tuple, Optional
@@ -11,6 +12,7 @@ class SystemID():
     """
 
     _system_id_catalog = {} #used to store all instances of system IDs created
+    _system_id_plots = {} #used to store all plot related info for each systemID
 
     def __init__(self, name: str, u: NDArray[np.float64], y: NDArray[np.float64], T: NDArray[np.float64], u_y_form: Optional[Tuple[int, int]] = None, **kwargs):
         if len(u) != len(y): 
@@ -18,11 +20,31 @@ class SystemID():
         self.name = name
         self.u = u
         self.y = y
-        self.T = T
+        self.T = T[2:] #Adjust Time vector to match the Ax=b matrix for plotting later on?
         self.N = len(u)
         self.u_y_form = u_y_form if u_y_form is not None else (2,2)
         for key, value in kwargs.items():
             setattr(self, key, value)
+    
+    @classmethod
+    def plot(cls):
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,8))
+        ax1.set_title("Error over Time")
+        ax2.set_title("Relative Error over Time")
+        for key, value in cls._system_id_plots.items():
+            print(f"Preparing plots for: {key}")
+            for error_type, data_set in value.items():
+                if error_type == "Error":
+                    ax1.plot(data_set[1], data_set[0], label=key)
+                    ax1.set_ylabel("Error")
+                elif error_type == "Relative Error":
+                    ax2.plot(data_set[1], data_set[0], label=key)
+                    ax2.set_ylabel("Relative Error (%)")
+
+        ax1.legend()
+        ax2.legend()
+        return fig
+
 
     def normalize_data(self):
         self.u = self.u/np.max(np.abs(self.u))
@@ -80,6 +102,10 @@ class SystemID():
             "Fit Ratio": self.fit_ratio,
         }
         SystemID._system_id_catalog[self.name] = self.model_report
+        SystemID._system_id_plots[self.name] = {
+            "Error" : [self.error, self.T],
+            "Relative Error" : [self.relative_error, self.T]
+        }
 
     @property
     def NMSE(self) -> float:
@@ -87,6 +113,10 @@ class SystemID():
         MSE = (1/self.N)*np.linalg.norm(self.b - self.A @ self.x_parameters,2)**2
         MSO = (1/self.N)*np.linalg.norm(self.b,2)**2
         return MSE/MSO
+    
+    def NMSE_test(self) -> float:
+        #Computes the normalized mean squared error of the model from the test data provided
+        pass
     
     @property
     def error(self) -> NDArray[np.float64]:

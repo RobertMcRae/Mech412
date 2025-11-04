@@ -1,5 +1,6 @@
 import os
 import json
+import numpy as np
 
 from load_data_sc import load_data
 from system_ID import SystemID
@@ -37,9 +38,11 @@ system4 = SystemID(name = "System 4",
                   normalize = True)
 system4.run()
 system123 = SystemID(name = "System 1,2,3 Combined",
-                    u = data1[:,1] + data2[:,1] + data3[:,1],
-                    y = data1[:,2] + data2[:,2] + data3[:,2],
-                    T = data1[:,0] + data2[:,0] + data3[:,0],
+                    u = np.concatenate([data1[:,1], data2[:,1], data3[:,1]]),
+                    y = np.concatenate([data1[:,2], data2[:,2], data3[:,2]]),
+                    T = np.concatenate([data1[:,0],
+                                        data2[:,0] + data1[-1,0],
+                                        data3[:,0] + data1[-1,0] + data2[-1,0]]),
                     normalize = True)
 system123.run()
 print("SystemID complete.")
@@ -48,4 +51,5 @@ cwd = os.getcwd()
 with open('Assignments/Project/results/system_id.json', 'w') as f: 
     json.dump(SystemID._system_id_catalog, f, indent=4)
 
-
+fig = SystemID.plot()
+fig.savefig('Assignments/Project/results/system_id_plots.pdf')
