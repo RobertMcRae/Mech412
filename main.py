@@ -17,24 +17,32 @@ system1 = SystemID(name = "System 1",
                   u = data1[:,1],
                   y = data1[:,2],
                   T = data1[:,0],
+                  u_test = data4[:,1],
+                  y_test = data4[:,2],
                   normalize = True)
 system1.run()
 system2 = SystemID(name = "System 2",
                   u = data2[:,1],
                   y = data2[:,2],
                   T = data2[:,0] + data1[-1,0],
+                  u_test = data4[:,1],
+                  y_test = data4[:,2],
                   normalize = True)
 system2.run()
 system3 = SystemID(name = "System 3",
                   u = data3[:,1],
                   y = data3[:,2],
                   T = data3[:,0] + data1[-1,0] + data2[-1,0],
+                  u_test = data4[:,1],
+                  y_test = data4[:,2],
                   normalize = True)
 system3.run()
 system4 = SystemID(name = "System 4",
                   u = data4[:,1],
                   y = data4[:,2],
                   T = data4[:,0] + data1[-1,0] + data2[-1,0] + data3[-1,0],
+                  u_test = np.concatenate([data1[:,1], data2[:,1], data3[:,1]]),
+                  y_test = np.concatenate([data1[:,2], data2[:,2], data3[:,2]]),
                   normalize = True)
 system4.run()
 system123 = SystemID(name = "System 1,2,3 Combined",
@@ -43,6 +51,8 @@ system123 = SystemID(name = "System 1,2,3 Combined",
                     T = np.concatenate([data1[:,0],
                                         data2[:,0] + data1[-1,0],
                                         data3[:,0] + data1[-1,0] + data2[-1,0]]),
+                    u_test = data4[:,1],
+                    y_test = data4[:,2],
                     normalize = True)
 system123.run()
 print("SystemID complete.")

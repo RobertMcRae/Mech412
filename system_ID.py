@@ -55,48 +55,47 @@ class SystemID():
             self.normalize_data()
             print("Data normalized.")
         
-        self.x_parameters = self.solve_Axb()
+        self.A, self.x_parameters, self.b = self.form_Axb(self.u, self.y)
         self._run_uncertainty_analysis()
 
-    def solve_Axb(self):
+    def form_Axb(self, u: NDArray[np.float64], y: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         #Flip data
-        self.u = self.u[::-1]
-        self.y = self.y[::-1]
+        u = u[::-1]
+        y = y[::-1]
 
         #Form A and b matrices
-        b = self.y[:-self.u_y_form[1]].reshape(-1,1)
-        A = np.zeros((self.N - self.u_y_form[1], self.u_y_form[0] + self.u_y_form[1]))
+        b = y[:-self.u_y_form[1]].reshape(-1,1)
+        A = np.zeros((len(u) - self.u_y_form[1], self.u_y_form[0] + self.u_y_form[1]))
 
         #Conditionally build A matrix depending on the u_y form given
         for i in range(self.u_y_form[1]): #iterating the y values for the A matrix
             start = i+1
             stop = -self.u_y_form[1]+1+i if i != self.u_y_form[1]-1 else None
             print(f"Array y to index is now: {start} to {stop}")
-            A[:, [i]] = -self.y[start : stop].reshape(-1,1) #To validate
+            A[:, [i]] = -y[start : stop].reshape(-1,1) #To validate
 
         for i in range(self.u_y_form[0]): #iterating the u values for the A matrix
             start = i+1
             stop = -self.u_y_form[0]+1+i if i != self.u_y_form[0]-1 else None
             print(f"Array u to index is now: {start} to {stop}")
-            A[:, [i + self.u_y_form[1]]] = self.u[start : stop].reshape(-1,1)
+            A[:, [i + self.u_y_form[1]]] = u[start : stop].reshape(-1,1)
 
-        self.rank = np.linalg.matrix_rank(A)
-        print(f"Matrix A rank: {self.rank}, shape: {A.shape[1]}")
-        self.A = A
-        self.b = b
+        rank = np.linalg.matrix_rank(A)
+        print(f"Matrix A rank: {rank}, shape: {A.shape[1]}")
 
         #Solve the AX=b problem
         x = np.linalg.solve(A.T @ A, A.T @ b)
         print(f"The identified parameters are: {x}")
-        return x
+        return A,x,b
 
     def _run_uncertainty_analysis(self):
         """ 
         Function used to call all methods related to assesing accuracy and confidence in the identified model. Function 
-        is coupled with the classes' solve_Axb method to ensure all identified models are analyzed.  
+        is coupled with the classes' form_Axb method to ensure all identified models are analyzed.  
         """
         self.model_report = {
             "NMSE": self.NMSE,
+            "NMSE_test": self.NMSE_test,
             "Mean and Std Error": self.mean_and_std_error,
             "VAF": self.VAF,
             "Fit Ratio": self.fit_ratio,
@@ -114,9 +113,15 @@ class SystemID():
         MSO = (1/self.N)*np.linalg.norm(self.b,2)**2
         return MSE/MSO
     
+    @property
     def NMSE_test(self) -> float:
         #Computes the normalized mean squared error of the model from the test data provided
-        pass
+        if not hasattr(self, 'u_test') or not hasattr(self, 'y_test'):
+            raise AttributeError(f"No test data was provided for the given systemID {self.name}. Please provide u_test and y_test attributes to compute NMSE_test.")
+        self.A_test, _, self.b_test = self.form_Axb(self.u_test, self.y_test)
+        MSE = (1/self.N)*np.linalg.norm(self.b_test - self.A_test @ self.x_parameters,2)**2
+        MSO = (1/self.N)*np.linalg.norm(self.b_test,2)**2
+        return MSE/MSO
     
     @property
     def error(self) -> NDArray[np.float64]:
