@@ -13,6 +13,7 @@ class SystemID():
 
     _system_id_catalog = {} #used to store all instances of system IDs created
     _system_id_plots = {} #used to store all plot related info for each systemID
+    _best_model : Optional["SystemID"] = None #Best IDed model based on NMSE test
 
     def __init__(self, name: str, u: NDArray[np.float64], y: NDArray[np.float64], T: NDArray[np.float64], u_y_form: Optional[Tuple[int, int]] = None, **kwargs):
         if len(u) != len(y): 
@@ -28,9 +29,18 @@ class SystemID():
     
     @classmethod
     def plot(cls):
+        return {
+            "errors": cls.plot_errors(),
+            "IO_best_model": cls.plot_IO_best_model()
+        }
+    
+    @classmethod
+    def plot_errors(cls): 
+        #Plot of input,output and IDied output for different sizes of A matrix for system 1,2,3 can be plotted 
+        #so that we can get a good feel for what m,n values we should do
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10,8))
-        ax1.set_title("Error over Time")
-        ax2.set_title("Relative Error over Time")
+        ax1.set_title("Error")
+        ax2.set_title("Relative Error")
         for key, value in cls._system_id_plots.items():
             print(f"Preparing plots for: {key}")
             for error_type, data_set in value.items():
@@ -44,7 +54,38 @@ class SystemID():
         ax1.legend()
         ax2.legend()
         return fig
+    
+    @classmethod
+    def plot_IO_best_model(cls): #plot the input/output vs IDed output for the best model and its different num. and den. order
+        if cls._best_model is None: 
+            raise Exception("No best model has been identified yet. Please run at least one SystemID instance.")
+        
+        best_model = cls._best_model
+        #For now, u_y_form is statically set inside this dictionary. A more dynamic approach can be thought of later. 
+        u_y = {
+            "2-2": (2,2),
+            "500-500": (500,500),
+        }
 
+        for key, value in u_y.items():
+            print(f"Forming Axb for U-Y form: {key}")
+            _,x,_ = best_model.form_Axb(best_model.u, best_model.y, u_y_form=value)
+            A_test,_,_ = best_model.form_Axb(best_model.u_test, best_model.y_test, u_y_form=value)
+            y_ided = A_test @ x
+            u_y[key] = y_ided
+        
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.set_title(f"Input/Output vs IDed Output for Best Model: {cls._best_model.name}")
+        ax.plot(cls._best_model.t_test, cls._best_model.y_test, label="Output")
+        ax.plot(cls._best_model.t_test, cls._best_model.u_test, label="Input")
+        for key, y_ided in u_y.items():
+            if len(y_ided) != len(cls._best_model.t_test):
+                diff = len(cls._best_model.t_test) - len(y_ided)
+                cls._best_model.t_test = cls._best_model.t_test[:-diff]
+            ax.plot(cls._best_model.t_test, y_ided, label=f"U-Y form: {key}")
+        ax.legend()
+        
+        return fig
 
     def normalize_data(self):
         self.u = self.u/np.max(np.abs(self.u))
@@ -58,27 +99,34 @@ class SystemID():
         self.A, self.x_parameters, self.b = self.form_Axb(self.u, self.y)
         self._run_uncertainty_analysis()
 
-    def form_Axb(self, u: NDArray[np.float64], y: NDArray[np.float64]) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    def form_Axb(self, u: NDArray[np.float64], y: NDArray[np.float64], u_y_form = (2,2)) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         #Flip data
         u = u[::-1]
         y = y[::-1]
 
         #Form A and b matrices
-        b = y[:-self.u_y_form[1]].reshape(-1,1)
-        A = np.zeros((len(u) - self.u_y_form[1], self.u_y_form[0] + self.u_y_form[1]))
+        b = y[:-np.max(u_y_form)].reshape(-1,1)
+        A = np.zeros((len(u) - np.max(u_y_form), u_y_form[0] + u_y_form[1]))
+        
+        #Splice u/y matrix to account for different u and y values
+        if u_y_form[0] != u_y_form[1]:
+            diff = abs(u_y_form[0] - u_y_form[1])
+            #Only way to modify the u-y arrays?
+            u = u[:-diff] if u_y_form[1] > u_y_form[0] else u
+            y = y[:-diff] if u_y_form[0] > u_y_form[1] else y
 
         #Conditionally build A matrix depending on the u_y form given
-        for i in range(self.u_y_form[1]): #iterating the y values for the A matrix
+        for i in range(u_y_form[1]): #iterating the y values for the A matrix
             start = i+1
-            stop = -self.u_y_form[1]+1+i if i != self.u_y_form[1]-1 else None
+            stop = -u_y_form[1]+1+i if i != u_y_form[1]-1 else None
             print(f"Array y to index is now: {start} to {stop}")
             A[:, [i]] = -y[start : stop].reshape(-1,1) #To validate
 
-        for i in range(self.u_y_form[0]): #iterating the u values for the A matrix
+        for i in range(u_y_form[0]): #iterating the u values for the A matrix
             start = i+1
-            stop = -self.u_y_form[0]+1+i if i != self.u_y_form[0]-1 else None
+            stop = -u_y_form[0]+1+i if i != u_y_form[0]-1 else None
             print(f"Array u to index is now: {start} to {stop}")
-            A[:, [i + self.u_y_form[1]]] = u[start : stop].reshape(-1,1)
+            A[:, [i + u_y_form[1]]] = u[start : stop].reshape(-1,1)
 
         rank = np.linalg.matrix_rank(A)
         print(f"Matrix A rank: {rank}, shape: {A.shape[1]}")
@@ -105,6 +153,8 @@ class SystemID():
             "Error" : [self.error, self.T],
             "Relative Error" : [self.relative_error, self.T]
         }
+        if SystemID._best_model is None or self.NMSE_test < SystemID._best_model.NMSE_test:
+            SystemID._best_model = self
 
     @property
     def NMSE(self) -> float:
@@ -145,6 +195,6 @@ class SystemID():
         return (1 - np.sqrt(np.var(self.error))/np.std(self.y)) * 100
 
     @property
-    def model_confidence(self) -> float:
+    def model_confidence(self) -> NDArray[np.float64]:
         #More computation needs to be done to draw insight from this property
         return np.linalg.norm(self.b - self.A @ self.x_parameters,2)/(self.N - (self.u_y_form[0] + self.u_y_form[1] + 1)) * np.linalg.inv(self.A.T @ self.A)
