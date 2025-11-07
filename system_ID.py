@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from numpy.typing import NDArray
 from typing import Tuple, Optional
 
+from pyparsing import line
+
 class SystemID():
     """
     A class used for performing system identification on Input-Output data. Initialize the class by providing the inputs, outputs and time stamps
@@ -64,7 +66,7 @@ class SystemID():
         #For now, u_y_form is statically set inside this dictionary. A more dynamic approach can be thought of later. 
         u_y = {
             "2-2": (2,2),
-            "500-500": (500,500),
+            "10-10": (10,10),
         }
 
         for key, value in u_y.items():
@@ -82,7 +84,7 @@ class SystemID():
             if len(y_ided) != len(cls._best_model.t_test):
                 diff = len(cls._best_model.t_test) - len(y_ided)
                 cls._best_model.t_test = cls._best_model.t_test[:-diff]
-            ax.plot(cls._best_model.t_test, y_ided, label=f"U-Y form: {key}")
+            ax.plot(cls._best_model.t_test, y_ided, label=f"U-Y form: {key}", linestyle='--')
         ax.legend()
         
         return fig
@@ -143,7 +145,7 @@ class SystemID():
         """
         self.model_report = {
             "NMSE": self.NMSE,
-            "NMSE_test": self.NMSE_test,
+            "NMSE_test": self.NMSE_test(x_parameters = self.x_parameters),
             "Mean and Std Error": self.mean_and_std_error,
             "VAF": self.VAF,
             "Fit Ratio": self.fit_ratio,
@@ -153,8 +155,9 @@ class SystemID():
             "Error" : [self.error, self.T],
             "Relative Error" : [self.relative_error, self.T]
         }
-        if SystemID._best_model is None or self.NMSE_test < SystemID._best_model.NMSE_test:
+        if SystemID._best_model is None or self.NMSE_test(self.x_parameters) < SystemID._best_model.officialNMSE_test:
             SystemID._best_model = self
+            SystemID._best_model.officialNMSE_test = self.NMSE_test(self.x_parameters)
 
     @property
     def NMSE(self) -> float:
@@ -163,14 +166,13 @@ class SystemID():
         MSO = (1/self.N)*np.linalg.norm(self.b,2)**2
         return MSE/MSO
     
-    @property
-    def NMSE_test(self) -> float:
+    def NMSE_test(self, x_parameters, u_y_form = (2,2)) -> float:
         #Computes the normalized mean squared error of the model from the test data provided
         if not hasattr(self, 'u_test') or not hasattr(self, 'y_test'):
             raise AttributeError(f"No test data was provided for the given systemID {self.name}. Please provide u_test and y_test attributes to compute NMSE_test.")
-        self.A_test, _, self.b_test = self.form_Axb(self.u_test, self.y_test)
-        MSE = (1/self.N)*np.linalg.norm(self.b_test - self.A_test @ self.x_parameters,2)**2
-        MSO = (1/self.N)*np.linalg.norm(self.b_test,2)**2
+        A_test, _, b_test = self.form_Axb(self.u_test, self.y_test, u_y_form=u_y_form)
+        MSE = (1/self.N)*np.linalg.norm(b_test - A_test @ x_parameters,2)**2
+        MSO = (1/self.N)*np.linalg.norm(b_test,2)**2
         return MSE/MSO
     
     @property
@@ -198,3 +200,28 @@ class SystemID():
     def model_confidence(self) -> NDArray[np.float64]:
         #More computation needs to be done to draw insight from this property
         return np.linalg.norm(self.b - self.A @ self.x_parameters,2)/(self.N - (self.u_y_form[0] + self.u_y_form[1] + 1)) * np.linalg.inv(self.A.T @ self.A)
+    
+    def analyze_different_u_y_forms(self, u_y_forms: list[Tuple[int,int]]):
+        payload = {}
+        for form in u_y_forms:
+            _, x, _ = self.form_Axb(self.u, self.y, u_y_form=form)
+            NMSE = self.NMSE_test(x, u_y_form=form)
+            payload[f"{form}"] = NMSE
+        return payload
+    
+    def plot_u_y_forms(self, u_y_forms: dict): 
+        NMSEs = [value for _, value in u_y_forms.items()]
+        x = np.arange(len(u_y_forms))
+
+        fig, ax = plt.subplots(figsize=(10,8))
+        ax.plot(x, NMSEs, marker='o')
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([str(key) for key in u_y_forms.keys()])
+
+        ax.set_xlabel("U-Y Form")
+        ax.set_ylabel("NMSE")
+        ax.set_title("NMSE vs U-Y Forms")
+        plt.grid(True)
+
+        return fig

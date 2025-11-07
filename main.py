@@ -71,3 +71,10 @@ with open('Assignments/Project/results/system_id.json', 'w') as f:
 #Save all plots
 for key, value in SystemID.plot().items():
     value.savefig(f'Assignments/Project/results/{key}.pdf')
+
+forms = [(1,1), (2,1), (1,2), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (10,10)]
+results = SystemID._best_model.analyze_different_u_y_forms(forms)
+with open('Assignments/Project/results/best_model_u_y_forms.json', 'w') as f:
+    json.dump(results, f, indent=4)
+
+SystemID._best_model.plot_u_y_forms(results).savefig('Assignments/Project/results/best_model_u_y_forms.pdf')
