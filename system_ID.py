@@ -1,4 +1,4 @@
-import control
+from os import system
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -16,6 +16,7 @@ class SystemID():
     _system_id_catalog = {} #used to store all instances of system IDs created
     _system_id_plots = {} #used to store all plot related info for each systemID
     _best_model : Optional["SystemID"] = None #Best IDed model based on NMSE test
+    system_id_collection = {} #A collection of all system ID instances created
 
     def __init__(self, name: str, u: NDArray[np.float64], y: NDArray[np.float64], T: NDArray[np.float64], u_y_form: Optional[Tuple[int, int]] = None, **kwargs):
         if len(u) != len(y): 
@@ -28,6 +29,7 @@ class SystemID():
         self.u_y_form = u_y_form if u_y_form is not None else (2,2)
         for key, value in kwargs.items():
             setattr(self, key, value)
+        SystemID.system_id_collection[name] = self
     
     @classmethod
     def plot(cls):
@@ -90,8 +92,10 @@ class SystemID():
         return fig
 
     def normalize_data(self):
-        self.u = self.u/np.max(np.abs(self.u))
-        self.y = self.y/np.max(np.abs(self.y))
+        self.u_norm = np.max(np.abs(self.u))
+        self.y_norm = np.max(np.abs(self.y))
+        self.u = self.u/self.u_norm
+        self.y = self.y/self.y_norm
     
     def run(self):
         if self.normalize: 

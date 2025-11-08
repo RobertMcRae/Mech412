@@ -4,6 +4,7 @@ import numpy as np
 
 from load_data_sc import load_data
 from system_ID import SystemID
+from model_uncertainty import ModelUncertainty
 
 data = load_data() #Data struct: [csv files, entries, time/input/output]
 
@@ -11,6 +12,8 @@ data1 = data[0,:,:]  #IO_data_1_0.csv
 data2 = data[1,:,:]  #IO_data_1_1.csv
 data3 = data[2,:,:]  #IO_data_1_2.csv
 data4 = data[3,:,:]  #IO_data_1_3.csv
+
+step_size = data1[1,0] - data1[0,0]
 
 print("Starting SystemID")
 system1 = SystemID(name = "System 1",
@@ -55,8 +58,8 @@ system123 = SystemID(name = "System 1,2,3 Combined",
                     u = np.concatenate([data1[:,1], data2[:,1], data3[:,1]]),
                     y = np.concatenate([data1[:,2], data2[:,2], data3[:,2]]),
                     T = np.concatenate([data1[:,0],
-                                        data2[:,0] + data1[-1,0],
-                                        data3[:,0] + data1[-1,0] + data2[-1,0]]),
+                                        data2[:,0] + data1[-1,0] + step_size,
+                                        data3[:,0] + data1[-1,0] + data2[-1,0] + 2*step_size]),
                     u_test = data4[:,1],
                     y_test = data4[:,2],
                     t_test = data4[:,0],
@@ -78,3 +81,7 @@ with open('Assignments/Project/results/best_model_u_y_forms.json', 'w') as f:
     json.dump(results, f, indent=4)
 
 SystemID._best_model.plot_u_y_forms(results).savefig('Assignments/Project/results/best_model_u_y_forms.pdf')
+
+models = ModelUncertainty(SystemID.system_id_collection)
+fig = models.plot_residuals()
+fig.savefig('Assignments/Project/results/model_uncertainty_residuals.pdf')
