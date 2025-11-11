@@ -68,20 +68,23 @@ system123.run()
 print("SystemID complete.")
 
 cwd = os.getcwd()
-with open('Assignments/Project/results/system_id.json', 'w') as f: 
+with open('results/system_id.json', 'w') as f: 
     json.dump(SystemID._system_id_catalog, f, indent=4)
 
 #Save all plots
 for key, value in SystemID.plot().items():
-    value.savefig(f'Assignments/Project/results/{key}.pdf')
+    value.savefig(f'results/{key}.pdf')
 
 forms = [(1,1), (2,1), (1,2), (2,2), (3,3), (4,4), (5,5), (6,6), (7,7), (8,8), (9,9), (10,10)]
 results = SystemID._best_model.analyze_different_u_y_forms(forms)
-with open('Assignments/Project/results/best_model_u_y_forms.json', 'w') as f:
+with open('results/best_model_u_y_forms.json', 'w') as f:
     json.dump(results, f, indent=4)
 
-SystemID._best_model.plot_u_y_forms(results).savefig('Assignments/Project/results/best_model_u_y_forms.pdf')
+SystemID._best_model.plot_u_y_forms(results).savefig('results/best_model_u_y_forms.pdf')
 
 models = ModelUncertainty(SystemID.system_id_collection)
 fig = models.plot_residuals()
-fig.savefig('Assignments/Project/results/model_uncertainty_residuals.pdf')
+fig.savefig('results/model_uncertainty_residuals.pdf')
+
+fig_nominal = models.plot_nominal_plant()
+fig_nominal.savefig('results/nominal_plant_bode.pdf')

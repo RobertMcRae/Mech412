@@ -6,3 +6,6 @@ Project is Seperated as follows:
 
 ## 2. Controller Design
 
+
+NOTE: To run this script, please run the main.py file
+
